@@ -52,9 +52,9 @@ def choose_action(Q, state, player, epsilon=0.1):
     
     return get_max_action(Q, next_states, actions)
 
-def train(dt):
+def train(dt=None):
     initialize_q()
-    num_episodes = 1000000
+    num_episodes = 1200000
     alpha = 0.001
     gamma = 0.99
     epsilon = 1.0
@@ -68,6 +68,8 @@ def train(dt):
         player = 0
         reward = 0
 
+        new_state = None
+
         while True:
             action = choose_action(Q, state, player, epsilon)
             afterstate = add_move(state, action, player)
@@ -78,13 +80,18 @@ def train(dt):
                 reward = 1
                 break
             elif check_draw(afterstate):
-                reward = 1
+                reward = 0
                 break
 
-            ai = ai.moves[action][0]
+            if new_state:
+                __, new_afterstates = get_afterstates(afterstate, 1 - player)
+                Q[new_state] = Q.get(new_state, 0) + alpha * (reward + gamma * get_best_score(Q, new_afterstates) - Q.get(new_state, 0))
 
-            DT_move = ai.get_best_move()
+            # ai = ai.moves[action][0]
+
+            # DT_move = ai.get_best_move()
             # DT_move = choose_action(afterstate, 1 - player, 1)
+            DT_move = choose_action(Q, afterstate, 1 - player, epsilon)
             new_state = add_move(afterstate, DT_move, 1 - player)
 
             if check_winner(new_state, 1 - player):
@@ -92,22 +99,24 @@ def train(dt):
                 reward = -1
                 break
             elif check_draw(new_state):
-                reward = 1
+                reward = 0
                 break
 
             ___, new_afterstates = get_afterstates(new_state, player)
 
-            Q[afterstate] = Q.get(afterstate, 0) + alpha * (reward + gamma * get_best_score(new_afterstates) - Q.get(afterstate, 0))
+            Q[afterstate] = Q.get(afterstate, 0) + alpha * (reward + gamma * get_best_score(Q, new_afterstates) - Q.get(afterstate, 0))
 
             state = new_state
-            ai = ai.moves[DT_move][0]
+            # ai = ai.moves[DT_move][0]
         
         Q[afterstate] = Q.get(afterstate, 0) + alpha * (reward - Q.get(afterstate, 0))
+        Q[new_state] = Q.get(new_state, 0) + alpha * (-reward - Q.get(new_state, 0))
 
         total_reward += reward
 
         if _ % 1000 == 0:
-            epsilon = epsilon * 0.99
+            epsilon = epsilon * 0.99 if epsilon * 0.99 >= 0.0005 else 0
+            alpha = 0.001 if epsilon * 0.99 >= 0.0005 else 0.0001
 
         if _ % 10000 == 0:
             print(f"Episode {_}: Epsilon: {epsilon}, Alpha: {alpha}, Reward: {total_reward / 10000}, Loss: {total_loss}")
@@ -117,13 +126,61 @@ def train(dt):
     with open('checkpoints/q_table_DT.pkl', 'wb') as f:
         pickle.dump(Q, f)
 
-def play(Q, num_games=10, dt=None):
-    state = [['_', '_', '_'], ['_', '_', '_'], ['_', '_', '_']]
+def play_DT_RL(Q, num_games=10, dt=None):
     player_0_wins = 0
     player_1_wins = 0
     draws = 0
 
     for _ in range(num_games):
+        state = [['_', '_', '_'], ['_', '_', '_'], ['_', '_', '_']]
+        ai = dt
+        while True:
+            if ai:
+                DT_move = ai.get_best_move()
+            else:
+                row = int(input("Enter row (0-2): "))
+                col = int(input("Enter column (0-2): "))
+
+                DT_move = (row, col)
+
+            afterstate = add_move(state, DT_move, 0)
+            print(afterstate)
+
+            if check_winner(afterstate, 0):
+                player_0_wins += 1
+                break
+            elif check_draw(afterstate):
+                draws += 1
+                break
+
+            action = choose_action(Q, afterstate, 1, 0)
+            new_state = add_move(afterstate, action, 1)
+
+            print(new_state)
+
+
+            if check_winner(new_state, 1):
+                player_1_wins += 1
+                break
+            elif check_draw(new_state):
+                draws += 1
+                break
+
+            state = new_state
+            if ai:
+                ai = ai.moves[DT_move][0]
+                ai = ai.moves[action][0]
+
+    print(f'Player 0 wins: {player_0_wins}, Player 1 wins: {player_1_wins}, Draws: {draws}')
+
+
+def play_RL_DT(Q, num_games=10, dt=None):
+    player_0_wins = 0
+    player_1_wins = 0
+    draws = 0
+
+    for _ in range(num_games):
+        state = [['_', '_', '_'], ['_', '_', '_'], ['_', '_', '_']]
         ai = dt
         while True:
             action = choose_action(Q, state, 0, 0)
@@ -147,11 +204,13 @@ def play(Q, num_games=10, dt=None):
 
             new_state = add_move(afterstate, DT_move, 1)
 
+
             if check_winner(new_state, 1):
                 player_1_wins += 1
                 break
             elif check_draw(new_state):
                 draws += 1
+                break
 
             state = new_state
             if ai:
