@@ -52,7 +52,7 @@ def choose_action(Q, state, player, epsilon=0.1):
     
     return get_max_action(Q, next_states, actions)
 
-def train(dt=None):
+def train_RL_RL():
     initialize_q()
     num_episodes = 1200000
     alpha = 0.001
@@ -63,20 +63,16 @@ def train(dt=None):
     total_loss = 0
 
     for _ in range(num_episodes):
-        ai = dt
         state = [['_', '_', '_'], ['_', '_', '_'], ['_', '_', '_']]
-        player = 0
         reward = 0
 
         new_state = None
 
         while True:
-            action = choose_action(Q, state, player, epsilon)
-            afterstate = add_move(state, action, player)
+            action = choose_action(Q, state, 0, epsilon)
+            afterstate = add_move(state, action, 0)
 
-            # print(ai.moves)
-
-            if check_winner(afterstate, player):
+            if check_winner(afterstate, 0):
                 reward = 1
                 break
             elif check_draw(afterstate):
@@ -84,17 +80,13 @@ def train(dt=None):
                 break
 
             if new_state:
-                __, new_afterstates = get_afterstates(afterstate, 1 - player)
+                __, new_afterstates = get_afterstates(afterstate, 1)
                 Q[new_state] = Q.get(new_state, 0) + alpha * (reward + gamma * get_best_score(Q, new_afterstates) - Q.get(new_state, 0))
 
-            # ai = ai.moves[action][0]
+            DT_move = choose_action(Q, afterstate, 1, epsilon)
+            new_state = add_move(afterstate, DT_move, 1)
 
-            # DT_move = ai.get_best_move()
-            # DT_move = choose_action(afterstate, 1 - player, 1)
-            DT_move = choose_action(Q, afterstate, 1 - player, epsilon)
-            new_state = add_move(afterstate, DT_move, 1 - player)
-
-            if check_winner(new_state, 1 - player):
+            if check_winner(new_state, 1):
                 total_loss += 1
                 reward = -1
                 break
@@ -102,12 +94,11 @@ def train(dt=None):
                 reward = 0
                 break
 
-            ___, new_afterstates = get_afterstates(new_state, player)
+            ___, new_afterstates = get_afterstates(new_state, 0)
 
             Q[afterstate] = Q.get(afterstate, 0) + alpha * (reward + gamma * get_best_score(Q, new_afterstates) - Q.get(afterstate, 0))
 
             state = new_state
-            # ai = ai.moves[DT_move][0]
         
         Q[afterstate] = Q.get(afterstate, 0) + alpha * (reward - Q.get(afterstate, 0))
         Q[new_state] = Q.get(new_state, 0) + alpha * (-reward - Q.get(new_state, 0))
@@ -123,7 +114,134 @@ def train(dt=None):
             total_reward = 0 
             total_loss = 0
 
-    with open('checkpoints/q_table_DT.pkl', 'wb') as f:
+    with open('checkpoints/q_table_RL_RL.pkl', 'wb') as f:
+        pickle.dump(Q, f)
+
+def train_RL_DT(dt):
+    initialize_q()
+    num_episodes = 1000000
+    alpha = 0.001
+    gamma = 0.99
+    epsilon = 1.0
+
+    total_reward = 0
+    total_loss = 0
+
+    for _ in range(num_episodes):
+        ai = dt
+        state = [['_', '_', '_'], ['_', '_', '_'], ['_', '_', '_']]
+        reward = 0
+
+        while True:
+            action = choose_action(Q, state, 0, epsilon)
+            afterstate = add_move(state, action, 0)
+
+            if check_winner(afterstate, 0):
+                reward = 1
+                break
+            elif check_draw(afterstate):
+                reward = 0
+                break
+
+            ai = ai.moves[action][0]
+
+            DT_move = ai.get_best_move()
+            new_state = add_move(afterstate, DT_move, 1)
+
+            if check_winner(new_state, 1):
+                total_loss += 1
+                reward = -1
+                break
+            elif check_draw(new_state):
+                reward = 0
+                break
+
+            ___, new_afterstates = get_afterstates(new_state, 0)
+
+            Q[afterstate] = Q.get(afterstate, 0) + alpha * (reward + gamma * get_best_score(Q, new_afterstates) - Q.get(afterstate, 0))
+
+            state = new_state
+            ai = ai.moves[DT_move][0]
+        
+        Q[afterstate] = Q.get(afterstate, 0) + alpha * (reward - Q.get(afterstate, 0))
+
+        total_reward += reward
+
+        if _ % 1000 == 0:
+            epsilon = epsilon * 0.99 if epsilon * 0.99 >= 0.0005 else 0
+            alpha = 0.001 if epsilon * 0.99 >= 0.0005 else 0.0001
+
+        if _ % 10000 == 0:
+            print(f"Episode {_}: Epsilon: {epsilon}, Alpha: {alpha}, Reward: {total_reward / 10000}, Loss: {total_loss}")
+            total_reward = 0 
+            total_loss = 0
+
+    with open('checkpoints/q_table_RL_DT.pkl', 'wb') as f:
+        pickle.dump(Q, f)
+
+
+def train_DT_RL(dt):
+    initialize_q()
+    num_episodes = 1000000
+    alpha = 0.001
+    gamma = 0.99
+    epsilon = 1.0
+
+    total_reward = 0
+    total_loss = 0
+
+    for _ in range(num_episodes):
+        ai = dt
+        state = [['_', '_', '_'], ['_', '_', '_'], ['_', '_', '_']]
+        reward = 0
+
+        new_state = None
+
+        while True:
+            DT_move = ai.get_best_move()
+            afterstate = add_move(state, DT_move, 0)
+
+            if check_winner(afterstate, 0):
+                reward = -1
+                total_loss += 1
+                break
+            elif check_draw(afterstate):
+                reward = 0
+                break
+
+            if new_state:
+                __, new_afterstates = get_afterstates(afterstate, 1)
+                Q[new_state] = Q.get(new_state, 0) + alpha * (reward + gamma * get_best_score(Q, new_afterstates) - Q.get(new_state, 0))
+
+            action = choose_action(Q, afterstate, 1, epsilon)
+            new_state = add_move(afterstate, action, 1)
+
+            if check_winner(new_state, 1):
+                reward = 1
+                break
+            elif check_draw(new_state):
+                reward = 0
+                break
+
+            state = new_state
+            
+            ai = ai.moves[DT_move][0]
+            ai = ai.moves[action][0]
+        
+        Q[new_state] = Q.get(new_state, 0) + alpha * (reward - Q.get(new_state, 0))
+
+        total_reward += reward
+
+        if _ % 1000 == 0:
+            epsilon = epsilon * 0.99 if epsilon * 0.99 >= 0.0005 else 0
+            alpha = 0.001 if epsilon * 0.99 >= 0.0005 else 0.0001
+
+        if _ % 10000 == 0:
+            print(f"Episode {_}: Epsilon: {epsilon}, Alpha: {alpha}, Reward: {total_reward / 10000}, Loss: {total_loss}")
+            total_reward = 0 
+            total_loss = 0
+
+    with open('checkpoints/q_table_DT_RL.pkl', 'wb') as f:
         pickle.dump(Q, f)
 
 def play_DT_RL(Q, num_games=10, dt=None):
@@ -144,7 +262,6 @@ def play_DT_RL(Q, num_games=10, dt=None):
                 DT_move = (row, col)
 
             afterstate = add_move(state, DT_move, 0)
-            print(afterstate)
 
             if check_winner(afterstate, 0):
                 player_0_wins += 1
@@ -156,7 +273,6 @@ def play_DT_RL(Q, num_games=10, dt=None):
             action = choose_action(Q, afterstate, 1, 0)
             new_state = add_move(afterstate, action, 1)
 
-            print(new_state)
 
 
             if check_winner(new_state, 1):
