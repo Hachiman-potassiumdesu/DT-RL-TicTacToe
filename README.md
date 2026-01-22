@@ -48,7 +48,7 @@ DT-RL-TicTacToe/
 1.  **Clone the repository:**
 
     ```bash
-    git clone https://github.com/Hachiman-potassiumdesu/DT-RL-TicTacToe.git
+    git clone https://github.com/kaitosuzuki-CS/DT-RL-TicTacToe.git
     cd DT-RL-TicTacToe
     ```
 
